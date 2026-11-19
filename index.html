@@ -168,7 +168,7 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
 .sw2::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
 .sw2[aria-checked=true]{background:#EE8A9E}.sw2[aria-checked=true]::after{left:23px}
 .opt select{height:40px;border:1px solid #D9CDBE;border-radius:10px;background:#fff;padding:0 10px;font-size:15px}
-.syncchip{font-size:12px;font-weight:500;padding:5px 10px;border-radius:999px;background:#EAF1FE;color:#1F4FB8;white-space:nowrap}
+.syncchip{cursor:pointer;font-size:12px;font-weight:500;padding:5px 10px;border-radius:999px;background:#EAF1FE;color:#1F4FB8;white-space:nowrap}
 .syncchip[data-st=local],.syncchip[data-st=offline]{background:#F1E9DD;color:#6B5E52}
 .syncchip[data-st=error],.syncchip[data-st=toolarge]{background:#FBE3E0;color:#9B2C20}
 .note{font-size:12px;color:var(--mute);text-align:center;margin:20px 0 0}
@@ -303,7 +303,7 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
   <div class="pane">
     <div class="hdr"><h1>설정</h1><span class="syncchip" role="status"></span></div>
     <div id="setMenu"></div>
-    <p class="note">나의 다이어리 · v0.5</p>
+    <p class="note">나의 다이어리 · v0.6</p>
   </div>
   <div class="pane">
     <div class="hdr">
@@ -357,7 +357,13 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
   function $(id){return document.getElementById(id)}
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
   function fmt(x){var h=Math.floor(x),m=Math.round((x-h)*60);return pad(h)+':'+pad(m)}
-  function evOf(s){return (S.userEv[s]||[]).slice().sort(function(a,b){return a[0]-b[0]})}
+  function evOf(s){
+    var a=(S.userEv[s]||[]).map(function(x,i){return{s:x[0],e:x[1],t:x[2],cat:x[3],src:'local',i:i}});
+    var g=(typeof G!=='undefined'&&G.ev[s])?G.ev[s].filter(function(e){return settings.gcalShow?settings.gcalShow[e.calId]!==false:true}):[];
+    return a.concat(g).sort(function(x,y){return((y.allDay?1:0)-(x.allDay?1:0))||(x.s-y.s)});
+  }
+  function hexA(h,a){h=(h||'#2F6FEB').replace('#','');if(h.length===3)h=h.split('').map(function(c){return c+c}).join('');var n=parseInt(h,16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'}
+  function evStyle(e){if(e.src==='local'){var c=COL[e.cat]||COL.work;return{bg:c[0],fg:c[1],dot:c[2]}}return{bg:hexA(e.color,.25),fg:'#2B241E',dot:e.color||'#2F6FEB'}}
   function wide(){return window.matchMedia('(min-width:900px)').matches}
   var ICON_CHECK='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
   var ICON_STAR='<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg>';
@@ -502,11 +508,12 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
   function renderCal(){
     var y=S.ym.y,m=S.ym.m,first=new Date(y,m,1),start=new Date(y,m,1-first.getDay()),h='';
     $('calTitle').textContent=y+'년 '+(m+1)+'월';
+    if(typeof gEnsureMonth==='function')gEnsureMonth(y,m);
     for(var i=0;i<42;i++){
       var d=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i),k=ds(d),inM=d.getMonth()===m,wd=d.getDay();
       var cls='cell'+(inM?'':' out')+(k===TODAY?' today':'')+(k===S.sel?' sel':'');
       var color=wd===0?'#C0392B':wd===6?'#2457C5':'#2B241E';
-      var chips=evOf(k).map(function(e){return '<span class="chip '+e[3]+'">'+esc(e[2])+'</span>'}).join('');
+      var all=evOf(k),chips=all.slice(0,4).map(function(e){var st=evStyle(e);return '<span class="chip" style="background:'+st.bg+';color:'+st.fg+'">'+esc(e.t)+'</span>'}).join('')+(all.length>4?'<span class="tdot">+'+(all.length-4)+'</span>':'');
       var tc=S.todos.filter(function(t){return t.date===k&&!t.done}).length;
       h+='<button type="button" class="'+cls+'" data-date="'+k+'" aria-label="'+(d.getMonth()+1)+'월 '+d.getDate()+'일"><span class="num" style="color:'+color+'">'+d.getDate()+'</span>'+chips+(tc?'<span class="tdot">할 일 '+tc+'</span>':'')+'</button>';
     }
@@ -515,7 +522,9 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
     var s=S.sel,evs=evOf(s);
     $('dayTitle').textContent=full(s);
     $('evCnt').textContent=evs.length?evs.length+'개':'';
-    $('dayEvents').innerHTML=evs.length?evs.map(function(e,i){var c=COL[e[3]]||COL.work;return '<div class="ev"><div class="tm">'+fmt(e[0])+'<span>~ '+fmt(e[1])+'</span></div><i style="background:'+c[2]+'"></i><div class="txt" style="flex:1"><b style="font-size:16px">'+esc(e[2])+'</b></div><button type="button" class="star" data-delev="'+i+'" aria-label="일정 삭제">'+ICON_X+'</button></div>'}).join(''):'<p class="empty">등록된 일정이 없습니다</p>';
+    $('dayEvents').innerHTML=evs.length?evs.map(function(e,i){var st=evStyle(e),armed=S.delArm&&S.delArm.k===s+':'+i&&Date.now()-S.delArm.t<4000;
+      var del=(e.src==='local'||e.canEdit)?'<button type="button" class="star" data-delev="'+i+'" aria-label="일정 삭제" style="'+(armed?'width:auto;padding:0 10px;color:#B3261E;font-weight:700;font-size:13px':'')+'">'+(armed?'삭제?':ICON_X)+'</button>':'';
+      return '<div class="ev"><div class="tm">'+(e.allDay?'종일':fmt(e.s)+'<span>~ '+fmt(e.e)+'</span>')+'</div><i style="background:'+st.dot+'"></i><div class="txt" style="flex:1"><b style="font-size:16px">'+esc(e.t)+'</b><span>'+(e.src==='g'?esc(e.cal||'Google 캘린더'):'이 앱에만 저장')+'</span></div>'+del+'</div>'}).join(''):'<p class="empty">등록된 일정이 없습니다</p>';
     var list=S.todos.filter(function(t){return onDay(t,s)});
     var dn=list.filter(function(t){return isDone(t,s)}).length;
     $('dayTodoCnt').textContent=list.length?dn+'/'+list.length+' 완료':'';
@@ -582,8 +591,11 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
     var log=S.doLog[s]||{},evs=evOf(s),planH=0;h='';
     for(var hr=START;hr<END;hr++){var t=log[hr];
       h+='<div class="row"><span class="hr">'+pad(hr)+':00</span><span></span><button type="button" class="do'+(t?' on':'')+'" data-hour="'+hr+'" aria-label="'+hr+'시 실행 '+(t?'기록 지우기':'기록하기')+'">'+(t?esc(t):'')+'</button></div>'}
-    evs.forEach(function(e){var a=Math.max(e[0],START),b=Math.min(e[1],END);if(b<=a)return;planH+=e[1]-e[0];var c=COL[e[3]]||COL.work;
-      h+='<div class="plan" style="top:'+((a-START)*ROW+3)+'px;height:'+((b-a)*ROW-4)+'px;background:'+c[0]+';color:'+c[1]+'"><b>'+esc(e[2])+'</b><span>'+fmt(e[0])+'–'+fmt(e[1])+'</span></div>'});
+    var allday=[];
+    evs.forEach(function(e){if(e.allDay){allday.push(e.t);return}var a=Math.max(e.s,START),b=Math.min(e.e,END);if(b<=a)return;planH+=e.e-e.s;var st=evStyle(e);
+      h+='<div class="plan" style="top:'+((a-START)*ROW+3)+'px;height:'+Math.max((b-a)*ROW-4,14)+'px;background:'+st.bg+';color:'+st.fg+'"><b>'+esc(e.t)+'</b><span>'+fmt(e.s)+'–'+fmt(e.e)+'</span></div>'});
+    if(allday.length)h='<div class="muted" style="margin:0 0 6px 50px">종일: '+allday.map(esc).join(', ')+'</div>'+h;
+    if(typeof gEnsureMonth==='function'){var sd=pd(s);gEnsureMonth(sd.getFullYear(),sd.getMonth())}
     $('tl').innerHTML=h;
     var list=S.todos.filter(function(t){return onDay(t,s)}),d=list.filter(function(t){return isDone(t,s)}).length;
     $('sPlan').textContent=(Math.round(planH*10)/10)+'시간';$('sDo').textContent=Object.keys(log).length+'시간';$('sTodo').textContent=d+' / '+list.length;
@@ -604,9 +616,10 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
     var title='',b='';
     for(var i=0;i<SET_MENU.length;i++)if(SET_MENU[i][0]===S.setSel)title=SET_MENU[i][1];
     if(S.setSel==='sync'){
-      b='<div class="sgrp"><h3>기기 간 동기화</h3><div class="opt"><div><b id="syncLine">'+statusText()+'</b><span>'+(SYNC.db?'같은 claude.ai 계정으로 연 아이폰·아이패드·노트북에서 할 일, 일정, 메모, 손글씨, 기록, 회고가 자동으로 맞춰집니다.':'설치한 앱은 지금 이 기기에만 저장됩니다. 구글 계정 동기화를 연결하면 모든 기기에서 맞춰집니다.')+'</span></div><button type="button" class="pill" data-syncnow'+(SYNC.db?'':' disabled')+'>지금 동기화</button></div></div>'+
-        '<div class="sgrp"><h3>구글 계정 (다음 단계)</h3><div class="opt"><div><b>Google</b><span>연결 준비 중 · 구글 클라우드 설정 후 활성화됩니다</span></div><button type="button" class="pill" disabled>연결하기</button></div>'+
-        sw('gcal','일정 ↔ 구글 캘린더','아이폰·아이패드 기본 캘린더에도 보입니다')+sw('gtasks','할 일 ↔ Google Tasks','')+sw('doCal','실행 기록을 별도 캘린더에 저장','"실행 기록" 캘린더를 따로 만듭니다')+'</div>';
+      if(SYNC.db){
+        b='<div class="sgrp"><h3>기기 간 동기화 (claude.ai)</h3><div class="opt"><div><b id="syncLine">'+statusText()+'</b><span>같은 claude.ai 계정으로 연 기기끼리 자동으로 맞춰집니다.</span></div><button type="button" class="pill" data-syncnow>지금 동기화</button></div></div>'+
+          '<div class="sgrp"><h3>구글 계정</h3><div class="opt"><div><b>설치한 앱에서 연결하세요</b><span>구글 로그인은 홈 화면에 설치한 앱(near1384rossi.github.io/PDS)에서만 됩니다.</span></div></div></div>';
+      }else b=gSettingsHTML();
     }else if(S.setSel==='screen'){
       b='<div class="sgrp"><h3>시작 화면</h3><div class="opt"><div><b>앱을 열면 보일 탭</b></div><select id="startTab" aria-label="시작 탭">'+
         [['cal','캘린더'],['todo','할 일'],['memo','메모'],['rec','기록']].map(function(o){return '<option value="'+o[0]+'"'+(settings.startTab===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></div></div>';
@@ -622,7 +635,7 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
         '<div id="restoreBox" class="hide" style="background:#FBE3E0;border-radius:12px;padding:12px;margin:8px 0;display:flex;flex-direction:column;gap:8px"><b id="restoreMsg" style="font-size:15px"></b><div style="display:flex;gap:8px"><button type="button" class="btn" data-restore-ok>복원하기</button><button type="button" class="pill" data-restore-cancel>취소</button></div></div>'+
         '<p class="msg" id="bkMsg"></p></div>';
     }else{
-      b='<div class="sgrp"><h3>정보</h3><div class="opt"><div><b>버전</b><span>0.5 · 실제 날짜 · 설치형</span></div></div><div class="opt"><div><b>데이터 저장 위치</b><span>'+(SYNC.db?'이 기기 + claude.ai 계정 (동기화)':'이 기기 (백업 파일을 주기적으로 저장하세요)')+'</span></div></div></div>';
+      b='<div class="sgrp"><h3>정보</h3><div class="opt"><div><b>버전</b><span>0.6 · 구글 캘린더 · 드라이브 동기화</span></div></div><div class="opt"><div><b>데이터 저장 위치</b><span>'+(SYNC.db?'이 기기 + claude.ai 계정 (동기화)':'이 기기 (백업 파일을 주기적으로 저장하세요)')+'</span></div></div></div>';
     }
     $('setTitle').textContent=title;$('setBody').innerHTML=b;
     var st=$('startTab');if(st)st.addEventListener('change',function(){settings.startTab=this.value;save('settings',settings)});
@@ -636,14 +649,14 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
   var DEV=load('dev',null);if(!DEV){DEV='d'+Math.random().toString(36).slice(2,10);rawSave('dev',DEV)}
   var SYNC={db:null,base:null,dl:null,status:'connecting',stamps:load('stamps',{}),timers:{},chain:{},pending:null,backups:null,inflight:0,init:{}};
   var CORE_KEYS={todos:1,nextId:1,doLog:1,see:1,seeMode:1,userEv:1,settings:1};
-  function statusText(){return{local:'이 기기에 저장 중',connecting:'연결 중…',syncing:'동기화 중…',synced:'동기화됨',offline:'오프라인 · 이 기기에 저장 후 나중에 동기화',error:'동기화 오류 · 잠시 후 다시 시도합니다',toolarge:'손글씨가 너무 커서 일부를 동기화하지 못했습니다'}[SYNC.status]||''}
+  function statusText(){return{local:'이 기기에 저장 중',connecting:'연결 중…',syncing:'동기화 중…',synced:'동기화됨',offline:'오프라인 · 이 기기에 저장 후 나중에 동기화',error:'동기화 오류 · 잠시 후 다시 시도합니다',toolarge:'손글씨가 너무 커서 일부를 동기화하지 못했습니다',gsyncing:'구글 동기화 중…',gsynced:'구글 동기화됨',gexpired:'구글 연결 갱신 필요 · 눌러서 연결',gerror:'구글 동기화 오류',gnone:'이 기기에 저장 중 · 구글 미연결'}[SYNC.status]||''}
   function setStatus(s){SYNC.status=s;var t=statusText();document.querySelectorAll('.syncchip').forEach(function(el){el.textContent=t;el.dataset.st=s});var l=$('syncLine');if(l)l.textContent=t}
   function onLocalSave(k){
     if(CORE_KEYS[k])dirty('core');
     else if(k==='memos'&&S.cur!==null)dirty('memo:'+S.cur);
     else if(k==='seeInk')dirty('ink:'+S.sel);
   }
-  function dirty(key){SYNC.stamps[key]=Date.now();rawSave('stamps',SYNC.stamps);push(key)}
+  function dirty(key){SYNC.stamps[key]=Date.now();rawSave('stamps',SYNC.stamps);push(key);if(typeof gScheduleDrive==='function')gScheduleDrive()}
   function refFor(key){
     if(key==='core')return SYNC.db.doc(SYNC.base+'/core');
     var p=key.split(':');return SYNC.db.doc(SYNC.base+'/profile/'+(p[0]==='memo'?'memos':'ink')+'/'+p[1]);
@@ -772,6 +785,208 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
     },function(){setStatus('local')});
   }
 
+  /* ---------- 구글 연결 (로그인 · 캘린더 · 드라이브 동기화) ---------- */
+  var G_CLIENT='312962780122-18fq3gfebsdpuoid24dpeopl3v80kshn.apps.googleusercontent.com';
+  var G_SCOPE='https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.appdata email';
+  var G_OK=/(^|\.)github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname)&&!(window.claude&&typeof window.claude.use==='function');
+  var G_REDIRECT=location.origin+location.pathname.replace(/[^\/]*$/,'');
+  var CAL='https://www.googleapis.com/calendar/v3',DRV='https://www.googleapis.com/drive/v3/files',UPL='https://www.googleapis.com/upload/drive/v3/files';
+  var gtok=load('gtok',null);
+  var G={token:gtok&&gtok.t,exp:gtok&&gtok.exp||0,email:load('gemail',''),cals:load('gcals',[]),ev:load('gev',{}),fetched:{},loading:{},fileId:null,dbusy:false,again:false,dt:null,lastErr:'',lastSync:0};
+  function gConnected(){return !!(G_OK&&G.token&&Date.now()<G.exp)}
+  function gInit(){
+    var h=location.hash||'',ret=null;
+    if(/access_token=|error=/.test(h)){
+      var p={};h.slice(1).split('&').forEach(function(kv){var i=kv.indexOf('=');if(i>0)p[decodeURIComponent(kv.slice(0,i))]=decodeURIComponent(kv.slice(i+1).replace(/\+/g,' '))});
+      if(p.access_token&&p.state&&p.state===load('gstate','')){
+        G.token=p.access_token;G.exp=Date.now()+((+p.expires_in)||3600)*1000-60000;
+        rawSave('gtok',{t:G.token,exp:G.exp});settings.google=true;rawSave('settings',settings);
+      }else if(p.error){G.lastErr=p.error==='access_denied'?'구글 연결을 취소했습니다.':'구글 연결 오류: '+p.error}
+      ret=load('gret',null);rawSave('gret',null);rawSave('gstate','');
+      try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+    }
+    return ret;
+  }
+  function gAuth(){
+    if(!G_OK)return;
+    var st=Math.random().toString(36).slice(2)+Date.now().toString(36);
+    rawSave('gstate',st);rawSave('gret',{tab:S.tab,setSel:S.setSel});rawSave('gauto',Date.now());
+    var q=[['client_id',G_CLIENT],['redirect_uri',G_REDIRECT],['response_type','token'],['scope',G_SCOPE],['include_granted_scopes','true'],['state',st]];
+    if(G.email)q.push(['login_hint',G.email]);
+    location.href='https://accounts.google.com/o/oauth2/v2/auth?'+q.map(function(x){return x[0]+'='+encodeURIComponent(x[1])}).join('&');
+  }
+  function gDisconnect(){
+    if(G.token){try{fetch('https://oauth2.googleapis.com/revoke?token='+encodeURIComponent(G.token),{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'}}).catch(function(){})}catch(e){}}
+    G.token=null;G.exp=0;G.ev={};G.cals=[];G.fetched={};rawSave('gtok',null);rawSave('gev',{});rawSave('gcals',[]);
+    settings.google=false;rawSave('settings',settings);setStatus('gnone');render();
+  }
+  function gErrText(e){
+    var m=(e&&e.msg)||'';
+    if(/accessNotConfigured|has not been used|is disabled/i.test(m))return /drive/i.test(m)?'Google Drive API가 꺼져 있습니다. 구글 클라우드에서 사용 설정해 주세요.':'Google Calendar API가 꺼져 있습니다. 구글 클라우드에서 사용 설정해 주세요.';
+    if(e&&e.code===403)return '권한이 없습니다 ('+((m.match(/"message":\s*"([^"]+)/)||[])[1]||'403')+')';
+    return '오류 '+((e&&e.code)||'')+' '+((m.match(/"message":\s*"([^"]+)/)||[])[1]||'');
+  }
+  function gfetch(url,opt){
+    if(!gConnected())return Promise.reject({code:401});
+    opt=opt||{};var hd={'Authorization':'Bearer '+G.token};
+    if(opt.headers)Object.keys(opt.headers).forEach(function(k){hd[k]=opt.headers[k]});opt.headers=hd;
+    return fetch(url,opt).then(function(r){
+      if(r.status===401){G.token=null;G.exp=0;rawSave('gtok',null);setStatus('gexpired');throw{code:401}}
+      if(!r.ok)return r.text().then(function(t){throw{code:r.status,msg:t}});
+      if(r.status===204)return null;
+      return r.text().then(function(t){try{return t?JSON.parse(t):null}catch(e){return t}});
+    });
+  }
+  function gFail(e){if(e&&e.code===401){setStatus('gexpired')}else{G.lastErr=gErrText(e);setStatus('gerror')}if(S.tab==='set')renderSet()}
+
+  /* 캘린더 */
+  function gLoadCals(){
+    return gfetch(CAL+'/users/me/calendarList?minAccessRole=reader&maxResults=250').then(function(r){
+      G.cals=(r.items||[]).map(function(c){return{id:c.id,name:c.summaryOverride||c.summary,bg:c.backgroundColor,primary:!!c.primary,selected:c.selected!==false,edit:c.accessRole==='owner'||c.accessRole==='writer'}});
+      rawSave('gcals',G.cals);
+      settings.gcalShow=settings.gcalShow||{};var ch=false;
+      G.cals.forEach(function(c){if(!(c.id in settings.gcalShow)){settings.gcalShow[c.id]=c.selected;ch=true}});
+      if(ch)rawSave('settings',settings);
+      var pc=G.cals.filter(function(c){return c.primary})[0];if(pc&&!G.email){G.email=pc.id;rawSave('gemail',G.email)}
+    });
+  }
+  function hrs(d){return d.getHours()+d.getMinutes()/60}
+  function gMonthRange(y,m){var first=new Date(y,m,1),start=new Date(y,m,1-first.getDay()),end=new Date(start.getFullYear(),start.getMonth(),start.getDate()+42);return[start,end]}
+  function gEnsureMonth(y,m,force){
+    if(!gConnected()||!G.cals.length)return;
+    var key=y+'-'+m;if(G.loading[key])return;
+    if(!force&&G.fetched[key]&&Date.now()-G.fetched[key]<5*60000)return;
+    G.loading[key]=true;
+    var rg=gMonthRange(y,m),shown=G.cals.filter(function(c){return !settings.gcalShow||settings.gcalShow[c.id]!==false});
+    Promise.all(shown.map(function(c){
+      var url=CAL+'/calendars/'+encodeURIComponent(c.id)+'/events?singleEvents=true&orderBy=startTime&maxResults=2500&timeMin='+encodeURIComponent(rg[0].toISOString())+'&timeMax='+encodeURIComponent(rg[1].toISOString());
+      return gfetch(url).then(function(r){return{c:c,items:r.items||[]}},function(e){if(e&&e.code===401)throw e;return{c:c,items:[]}});
+    })).then(function(res){
+      // 범위 안 날짜의 기존 구글 일정 지우고 다시 채움
+      for(var d=new Date(rg[0]);d<rg[1];d.setDate(d.getDate()+1))delete G.ev[ds(d)];
+      res.forEach(function(x){x.items.forEach(function(e){
+        if(e.status==='cancelled')return;
+        var base={src:'g',id:e.id,calId:x.c.id,cal:x.c.name,color:x.c.bg,canEdit:x.c.edit,t:e.summary||'(제목 없음)'};
+        if(e.start&&e.start.date){
+          for(var k=e.start.date;k<e.end.date;k=addDays(k,1)){var o={};for(var z in base)o[z]=base[z];o.allDay=true;o.s=0;o.e=24;(G.ev[k]=G.ev[k]||[]).push(o)}
+        }else if(e.start&&e.start.dateTime){
+          var sd=new Date(e.start.dateTime),ed=new Date(e.end.dateTime),lastMs=new Date(ed.getTime()-1),k2=ds(sd),endKey=ds(lastMs);
+          for(;k2<=endKey;k2=addDays(k2,1)){var o2={};for(var z2 in base)o2[z2]=base[z2];
+            o2.s=k2===ds(sd)?hrs(sd):0;o2.e=k2===ds(ed)?hrs(ed):24;if(o2.e<=o2.s)o2.e=o2.s+.25;
+            (G.ev[k2]=G.ev[k2]||[]).push(o2)}
+        }
+      })});
+      G.fetched[key]=Date.now();G.loading[key]=false;
+      try{rawSave('gev',G.ev)}catch(e){}
+      if(S.tab==='cal'||S.tab==='rec')render();
+    },function(e){G.loading[key]=false;gFail(e)});
+  }
+  function gRefreshCalendars(){var d=pd(S.sel);gEnsureMonth(S.ym.y,S.ym.m,true);if(d.getMonth()!==S.ym.m)gEnsureMonth(d.getFullYear(),d.getMonth(),true)}
+  function gCreateEvent(day,st,en,title,cat){
+    var tz='Asia/Seoul';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||tz}catch(e){}
+    var endDay=en<=st?addDays(day,0):day;if(en<=st){var p=st.split(':');en=pad(Math.min(23,+p[0]+1))+':'+p[1]}
+    var body={summary:title,start:{dateTime:day+'T'+st+':00',timeZone:tz},end:{dateTime:endDay+'T'+en+':00',timeZone:tz},colorId:{work:'9',site:'6',life:'3'}[cat]||undefined};
+    setStatus('gsyncing');
+    gfetch(CAL+'/calendars/primary/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){
+      setStatus('gsynced');var d=pd(day);gEnsureMonth(d.getFullYear(),d.getMonth(),true);
+    },gFail);
+  }
+  function gDeleteEvent(e){
+    setStatus('gsyncing');
+    gfetch(CAL+'/calendars/'+encodeURIComponent(e.calId)+'/events/'+encodeURIComponent(e.id),{method:'DELETE'}).then(function(){
+      setStatus('gsynced');var d=pd(S.sel);gEnsureMonth(d.getFullYear(),d.getMonth(),true);
+    },gFail);
+  }
+
+  /* 드라이브(앱 전용 폴더) 동기화: 할 일 · 직접 입력한 일정 · 메모 · 손글씨 · 기록 · 회고 */
+  function coreObj(){var st={};Object.keys(settings).forEach(function(k){if(k!=='google')st[k]=settings[k]});return{todos:S.todos,nextId:S.nextId,doLog:S.doLog,see:S.see,seeMode:S.seeMode,userEv:S.userEv,settings:st}}
+  function fullStamps(){
+    var st={};Object.keys(SYNC.stamps).forEach(function(k){st[k]=SYNC.stamps[k]});
+    if(!st.core)st.core=1;
+    S.memos.forEach(function(m){if(!st['memo:'+m.id])st['memo:'+m.id]=m.updated||1});
+    Object.keys(S.seeInk).forEach(function(d){if(!st['ink:'+d]&&S.seeInk[d].length)st['ink:'+d]=1});
+    return st;
+  }
+  function localPack(){return{app:'my-calendar',ver:3,at:new Date().toISOString(),stamps:fullStamps(),core:coreObj(),memos:S.memos,seeInk:S.seeInk}}
+  function gMerge(r){
+    var rs=r.stamps||{},ls=fullStamps(),changed=false;
+    if((rs.core||0)>(ls.core||0)&&r.core){
+      var v=r.core;S.todos=v.todos||[];S.nextId=Math.max(v.nextId||1,S.nextId);S.doLog=v.doLog||{};S.see=v.see||{};S.seeMode=v.seeMode||'type';S.userEv=v.userEv||{};
+      if(v.settings)Object.keys(v.settings).forEach(function(k){settings[k]=v.settings[k]});
+      SYNC.stamps.core=rs.core;changed=true;
+    }
+    var keys={};Object.keys(rs).concat(Object.keys(ls)).forEach(function(k){if(/^(memo|ink):/.test(k))keys[k]=1});
+    var needUp=(ls.core||0)>(rs.core||0);
+    Object.keys(keys).forEach(function(k){
+      var a=rs[k]||0,b=ls[k]||0,p=k.split(':');
+      if(a>b){
+        if(p[0]==='memo'){
+          var rm=null;(r.memos||[]).forEach(function(m){if(String(m.id)===p[1])rm=m});
+          S.memos=S.memos.filter(function(m){return String(m.id)!==p[1]});if(rm)S.memos.push(rm);else if(String(S.cur)===p[1])S.cur=null;
+        }else{var ri=(r.seeInk||{})[p[1]];if(ri&&ri.length)S.seeInk[p[1]]=ri;else delete S.seeInk[p[1]]}
+        SYNC.stamps[k]=a;changed=true;
+      }else if(b>a)needUp=true;
+    });
+    if(changed){
+      ['todos','nextId','doLog','see','seeMode','userEv','memos','seeInk'].forEach(function(k){rawSave(k,S[k])});rawSave('settings',settings);rawSave('stamps',SYNC.stamps);
+      var ae=document.activeElement;if(!(ae&&(ae.tagName==='TEXTAREA'||ae.tagName==='INPUT')))render();
+    }
+    return needUp;
+  }
+  function gDriveSync(){
+    if(!gConnected())return;
+    if(G.dbusy){G.again=true;return}
+    G.dbusy=true;setStatus('gsyncing');
+    var fileQ=G.fileId?Promise.resolve({id:G.fileId}):gfetch(DRV+'?spaces=appDataFolder&fields=files(id,modifiedTime)&q='+encodeURIComponent("name='diary-data.json'")).then(function(r){return r&&r.files&&r.files[0]||null});
+    fileQ.then(function(f){
+      if(!f){
+        var b='diary'+Date.now(),pack=localPack();
+        var body='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:'diary-data.json',parents:['appDataFolder']})+'\r\n--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify(pack)+'\r\n--'+b+'--';
+        return gfetch(UPL+'?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:body}).then(function(x){G.fileId=x.id});
+      }
+      G.fileId=f.id;
+      return gfetch(DRV+'/'+f.id+'?alt=media').then(function(r){
+        if(r&&typeof r==='object'&&gMerge(r))return gfetch(UPL+'/'+f.id+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json; charset=UTF-8'},body:JSON.stringify(localPack())});
+      },function(e){if(e&&e.code===404){G.fileId=null}throw e});
+    }).then(function(){G.lastSync=Date.now();G.lastErr='';setStatus('gsynced');if(S.tab==='set')renderSet()},gFail).then(function(){
+      G.dbusy=false;if(G.again){G.again=false;gScheduleDrive()}
+    });
+  }
+  function gScheduleDrive(){if(!gConnected())return;clearTimeout(G.dt);G.dt=setTimeout(gDriveSync,2500)}
+  function gSyncAll(force){if(!gConnected()){gAuth();return}gLoadCals().then(function(){gRefreshCalendars();gDriveSync()},gFail)}
+  function gStart(){
+    if(gConnected()){
+      setStatus('gsyncing');
+      gLoadCals().then(function(){gRefreshCalendars();gDriveSync()},gFail);
+    }else if(settings.google&&navigator.onLine!==false&&Date.now()-load('gauto',0)>60000){
+      setStatus('gexpired');gAuth();return;
+    }else setStatus(settings.google?'gexpired':'gnone');
+    document.addEventListener('visibilitychange',function(){
+      if(document.hidden||!gConnected())return;
+      gDriveSync();var d=pd(S.sel);gEnsureMonth(S.ym.y,S.ym.m);gEnsureMonth(d.getFullYear(),d.getMonth());
+    });
+    setInterval(function(){if(!document.hidden&&gConnected())gDriveSync()},90000);
+    setInterval(function(){if(settings.google&&G.token&&!gConnected()&&SYNC.status!=='gexpired')setStatus('gexpired')},30000);
+  }
+  function gSettingsHTML(){
+    var on=gConnected(),h='';
+    if(!settings.google&&!on){
+      h='<div class="sgrp"><h3>구글 계정</h3><div class="opt"><div><b>연결 안 됨</b><span>연결하면 구글 캘린더 일정이 보이고, 할 일·메모·손글씨·기록이 구글 드라이브를 통해 아이폰·아이패드·노트북에서 맞춰집니다.</span></div><button type="button" class="btn" data-gconnect>구글 연결</button></div>'+
+        '<p class="muted" style="margin:6px 0">처음 연결할 때 "Google에서 확인하지 않은 앱" 경고가 나오면 <b>고급 → 나의 다이어리(으)로 이동</b>을 누르고, 권한을 모두 체크해 허용하세요. 직접 만든 개인용 앱이라 나오는 안내입니다.</p></div>';
+    }else{
+      h='<div class="sgrp"><h3>구글 계정</h3><div class="opt"><div><b>'+(on?'연결됨':'연결 갱신 필요')+'</b><span>'+esc(G.email||'')+'</span></div>'+(on?'<button type="button" class="pill" data-gdisconnect>연결 해제</button>':'<button type="button" class="btn" data-gconnect>다시 연결</button>')+'</div>'+
+        '<div class="opt"><div><b id="syncLine">'+statusText()+'</b><span>'+(G.lastSync?'마지막 동기화 '+new Date(G.lastSync).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'')+(G.lastErr?' · '+esc(G.lastErr):'')+'</span></div><button type="button" class="pill" data-gsync>지금 동기화</button></div>'+
+        '<p class="muted" style="margin:6px 0">구글 보안 정책상 로그인은 약 1시간 유지됩니다. 만료되면 앱을 다시 열 때 자동으로 갱신되고, 위쪽 상태 표시를 눌러도 갱신됩니다.</p></div>';
+      if(G.cals.length){
+        h+='<div class="sgrp"><h3>표시할 구글 캘린더</h3>'+G.cals.map(function(c){var shown=!settings.gcalShow||settings.gcalShow[c.id]!==false;
+          return '<div class="opt"><div style="flex-direction:row;align-items:center;gap:10px"><i style="width:12px;height:12px;border-radius:4px;background:'+c.bg+';flex:none"></i><b>'+esc(c.name)+(c.primary?' (기본)':'')+'</b></div><button type="button" class="sw2" role="switch" data-gcal="'+esc(c.id)+'" aria-checked="'+shown+'" aria-label="'+esc(c.name)+' 표시"></button></div>'}).join('')+
+          '<p class="muted" style="margin:6px 0">앱에서 추가한 일정은 기본 캘린더에 저장되어 아이폰 캘린더 앱에도 보입니다.</p></div>';
+      }
+      h+='<div class="sgrp"><h3>동기화되는 것</h3><div class="opt"><div><b>구글 캘린더</b><span>일정 보기 · 추가 · 삭제</span></div></div><div class="opt"><div><b>구글 드라이브 (앱 전용 폴더)</b><span>할 일 · 메모 · 손글씨 · 실행 기록 · 회고. 드라이브 목록에는 보이지 않는 숨김 저장 공간입니다</span></div></div><div class="opt"><div><b>Google Tasks</b><span>다음 업데이트에서 연결 예정</span></div></div></div>';
+    }
+    return h;
+  }
+
   /* ---------- 이벤트 ---------- */
   document.addEventListener('click',function(e){
     var b=e.target.closest('button');if(!b||b.disabled)return;var d=b.dataset,t;
@@ -781,7 +996,16 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
     if(d.toggle){var p=d.toggle.split('|');t=byId(p[0]);if(t){if(t.repeat){t.doneOn=t.doneOn||{};if(t.doneOn[p[1]])delete t.doneOn[p[1]];else t.doneOn[p[1]]=true}else t.done=!t.done;saveTodos();render()}return}
     if(d.star){t=byId(d.star);if(t){t.star=!t.star;saveTodos();render()}return}
     if(d.del){S.todos=S.todos.filter(function(x){return x.id!=d.del});saveTodos();render();return}
-    if(d.delev!==undefined){var arr=evOf(S.sel),rm=arr[+d.delev];S.userEv[S.sel]=(S.userEv[S.sel]||[]).filter(function(x){return x!==rm});if(!S.userEv[S.sel].length)delete S.userEv[S.sel];save('userEv',S.userEv);renderCal();return}
+    if(d.delev!==undefined){var arr=evOf(S.sel),rm=arr[+d.delev],key=S.sel+':'+d.delev;if(!rm)return;
+      if(!(S.delArm&&S.delArm.k===key&&Date.now()-S.delArm.t<4000)){S.delArm={k:key,t:Date.now()};renderCal();return}
+      S.delArm=null;
+      if(rm.src==='local'){S.userEv[S.sel].splice(rm.i,1);if(!S.userEv[S.sel].length)delete S.userEv[S.sel];save('userEv',S.userEv);renderCal()}
+      else gDeleteEvent(rm);
+      return}
+    if(b.hasAttribute('data-gconnect')){gAuth();return}
+    if(b.hasAttribute('data-gsync')){gSyncAll(true);return}
+    if(b.hasAttribute('data-gdisconnect')){gDisconnect();return}
+    if(d.gcal){settings.gcalShow=settings.gcalShow||{};settings.gcalShow[d.gcal]=settings.gcalShow[d.gcal]===false;save('settings',settings);b.setAttribute('aria-checked',settings.gcalShow[d.gcal]!==false);G.fetched={};gRefreshCalendars();return}
     if(d.filter){S.filter=d.filter;renderTodo();return}
     if(d.memo){S.cur=+d.memo;S.detail.memo=true;renderMemo();if(!wide())window.scrollTo(0,0);return}
     if(d.memomode){var m=curMemo();if(m){m.mode=d.memomode;saveMemos();renderMemo()}return}
@@ -819,20 +1043,22 @@ textarea.f{border:1px solid #D9CDBE;border-radius:12px;padding:10px 12px;font-si
     e.preventDefault();var ti=$('evT').value.trim();if(!ti)return;
     function tv(s){var p=s.split(':');return +p[0]+(+p[1]||0)/60}
     var s=tv($('evS').value||'10:00'),en=tv($('evE').value||'11:00');if(en<=s)en=s+1;
+    if(gConnected()){gCreateEvent(S.sel,$('evS').value||'10:00',$('evE').value||'11:00',ti,$('evC').value||'work');$('evT').value='';$('evForm').classList.add('hide');return}
     (S.userEv[S.sel]=S.userEv[S.sel]||[]).push([s,en,ti,$('evC').value||'work']);save('userEv',S.userEv);
     $('evT').value='';$('evForm').classList.add('hide');renderCal();});
   document.querySelectorAll('[data-see]').forEach(function(t){t.addEventListener('input',function(){
     var v=S.see[S.sel]=S.see[S.sel]||{};v[t.dataset.see]=t.value;save('see',S.see)})});
   window.addEventListener('resize',function(){if(S.tab==='memo')renderMemoList()});
+  document.addEventListener('click',function(e){var c=e.target.closest('.syncchip');if(c&&SYNC.status==='gexpired')gAuth()});
   // 자정이 지나거나 앱으로 돌아오면 오늘 날짜 갱신
   function checkDay(){var n=ds(new Date());if(n!==TODAY){var wasToday=S.sel===TODAY;TODAY=n;if(wasToday)goToday();render()}}
   document.addEventListener('visibilitychange',function(){if(!document.hidden)checkDay()});
   setInterval(checkDay,60000);
 
   S.detail.cal=wide();
-  setTab(settings.startTab||'cal');
-  setStatus('connecting');
-  startSync();
+  var gRet=gInit();
+  if(gRet&&gRet.tab){if(gRet.setSel)S.setSel=gRet.setSel;if(gRet.tab==='set')S.detail.set=true;setTab(gRet.tab)}else setTab(settings.startTab||'cal');
+  if(G_OK){gStart()}else{setStatus('connecting');startSync()}
   if('serviceWorker' in navigator&&location.protocol==='https:'&&!/claude/.test(location.hostname)){
     try{navigator.serviceWorker.register('./sw.js').catch(function(){})}catch(e){}
   }
